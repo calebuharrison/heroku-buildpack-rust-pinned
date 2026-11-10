@@ -1,0 +1,4 @@
+#!/bin/bash
+set -euo pipefail
+test -f "$1/Cargo.toml" && test -f "$1/script/native/libxml2/sources.json" || exit 1
+echo 'fc-register Rust'

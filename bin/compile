@@ -1,0 +1,59 @@
+#!/bin/bash
+# Classic buildpack for fc-register. Run after Apt, before the asset/Rails buildpacks.
+set -euo pipefail
+build_dir=$1
+cache_dir=$2
+stack=${STACK-}
+[[ $stack == heroku-24 ]] || { echo "fc-register buildpack: unsupported STACK=$stack" >&2; exit 1; }
+[[ $(uname -s) == Linux ]] || { echo 'fc-register buildpack: Linux required' >&2; exit 1; }
+case $(uname -m) in
+  x86_64) rust_target=x86_64-unknown-linux-gnu ;;
+  aarch64) rust_target=aarch64-unknown-linux-gnu ;;
+  *) echo "fc-register buildpack: unsupported architecture $(uname -m)" >&2; exit 1 ;;
+esac
+for tool in python3 patch make cc pkg-config curl sha256sum install; do
+  command -v "$tool" >/dev/null || { echo "fc-register buildpack: missing $tool" >&2; exit 1; }
+done
+[[ -f $build_dir/Cargo.lock && -f $build_dir/rust-toolchain.toml ]] || {
+  echo 'fc-register buildpack: Cargo.lock and rust-toolchain.toml are required' >&2; exit 1;
+}
+for source in db/seeds/orientations/2026.yml db/rust/20261104000000_job_queue.sql public/404.html public/422.html public/500.html NOTICE-avo.md; do
+  [[ -s $build_dir/$source ]] || { echo "fc-register buildpack: missing $source" >&2; exit 1; }
+done
+[[ -d $build_dir/db/migrate && -d $build_dir/public/avo-assets && -d $build_dir/licenses/avo ]] || {
+  echo 'fc-register buildpack: missing migration, Avo asset, or license directory' >&2; exit 1;
+}
+version=$(sed -n 's/^channel *= *"\([^"]*\)"/\1/p' "$build_dir/rust-toolchain.toml")
+[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+  echo 'fc-register buildpack: invalid pinned Rust channel' >&2; exit 1;
+}
+cd "$build_dir"
+python3 script/native/libxml2/fetch.py
+bash script/native/libxml2/build.sh
+source script/native/libxml2/env.sh
+[[ $(pkg-config --modversion libxml-2.0) == 2.13.9 ]] || {
+  echo 'fc-register buildpack: pinned libxml2 version mismatch' >&2; exit 1;
+}
+export CARGO_HOME="$cache_dir/$stack/$rust_target/cargo"
+export RUSTUP_HOME="$cache_dir/$stack/$rust_target/rustup"
+export CARGO_TARGET_DIR="$cache_dir/$stack/$rust_target/target"
+export PATH="$CARGO_HOME/bin:$PATH"
+mkdir -p "$CARGO_HOME" "$RUSTUP_HOME" "$CARGO_TARGET_DIR"
+if [[ ! -x $CARGO_HOME/bin/rustup ]]; then
+  installer="$cache_dir/rustup-init-$rust_target"
+  url="https://static.rust-lang.org/rustup/dist/$rust_target/rustup-init"
+  curl --fail --location --silent --show-error "$url" -o "$installer"
+  curl --fail --location --silent --show-error "$url.sha256" -o "$installer.sha256"
+  expected=$(awk '{print $1}' "$installer.sha256")
+  [[ $expected =~ ^[a-fA-F0-9]{64}$ ]] || { echo 'fc-register buildpack: invalid rustup checksum' >&2; exit 1; }
+  echo "$expected  $installer" | sha256sum -c -
+  chmod +x "$installer"
+  "$installer" -y --no-modify-path --profile minimal --default-toolchain none
+fi
+"$CARGO_HOME/bin/rustup" toolchain install "$version" --profile minimal
+export RUSTUP_TOOLCHAIN="$version"
+"$CARGO_HOME/bin/cargo" build --release --locked -p web --bin fc-register
+install -Dm755 "$CARGO_TARGET_DIR/release/fc-register" "$build_dir/target/release/fc-register"
+[[ -x $build_dir/target/release/fc-register ]] || { echo 'fc-register buildpack: missing release binary' >&2; exit 1; }
+rm -rf "$build_dir/tmp/native/libxml2/build" "$build_dir/tmp/native/libxml2/download"
+echo "fc-register buildpack: Rust $version, $rust_target, pinned libxml2 2.13.9, locked binary ready"
