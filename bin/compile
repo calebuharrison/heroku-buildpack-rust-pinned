@@ -28,6 +28,7 @@ version=$(sed -n 's/^channel *= *"\([^"]*\)"/\1/p' "$build_dir/rust-toolchain.to
   echo 'fc-register buildpack: invalid pinned Rust channel' >&2; exit 1;
 }
 cd "$build_dir"
+python3 script/native/vips/install.py "$build_dir"
 python3 script/native/libxml2/fetch.py
 bash script/native/libxml2/build.sh
 source script/native/libxml2/env.sh
@@ -66,4 +67,4 @@ if [[ -n $probe_build ]]; then
 fi
 [[ -x $build_dir/target/release/fc-register ]] || { echo 'fc-register buildpack: missing release binary' >&2; exit 1; }
 rm -rf "$build_dir/tmp/native/libxml2/build" "$build_dir/tmp/native/libxml2/download"
-echo "fc-register buildpack: Rust $version, $rust_target, pinned libxml2 2.13.9, locked binary ready"
+echo "fc-register buildpack: Rust $version, $rust_target, pinned libxml2 2.13.9, reviewed vips 8.18.7, locked binary ready"

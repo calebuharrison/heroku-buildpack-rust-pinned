@@ -27,3 +27,19 @@ compile alone does not establish those runtime properties. In particular,
 the signature renderer needs ImageMagick's literal `convert` command and its
 Hurricane font. The heroku-24 base image supplies ImageMagick 6 `convert`,
 but the actual scratch slug and signature output still require verification.
+
+Task28 adds the reviewed **linux/amd64** libvips8.18.7 package. Compile invokes
+`script/native/vips/install.py` from the application, which downloads the exact
+public release asset defined there, validates its SHA256, manifest/file hashes,
+loaders and dynamic linkage, and atomically installs `vendor/vips`. The installer
+refuses other architectures and an existing prefix. The asset must be published
+and independently checked before deploying; source code alone is not activation.
+See `script/native/vips/README.md` for the immutable artifact identity.
+
+`bin/web`, `bin/worker` and `bin/release` route Rust through `bin/rust`. That shared
+wrapper selects the private prefix before the application and defaults Postgres
+to TLS. Operator Rust commands must also use `bin/rust`. It refuses a missing or
+wrong-version native package before starting the app. Rails commands keep their
+existing runtime selection. The old third-party vips buildpack is redundant for
+Rust, but removing it from a scratch buildpack list is a separately reviewed
+operation, not a side effect of this compile script.

@@ -35,6 +35,7 @@ exit 99
 END
 cat > "$stubs/python3" <<'END'
 #!/bin/sh
+printf 'python3 %s\n' "$*" >> "$CALLS"
 exit 0
 END
 cat > "$stubs/bash" <<'END'
@@ -79,6 +80,7 @@ STACK=heroku-24 /bin/bash "$here/bin/compile" "$build" "$cache" "$work/env" > "$
 [[ -x $build/target/release/fc-register ]]
 grep -q 'rustup toolchain install 1.93.1 --profile minimal' "$CALLS"
 grep -q 'cargo build --release --locked -p web --bin fc-register' "$CALLS"
+grep -Fq "python3 script/native/vips/install.py $build" "$CALLS"
 [[ ! -e $build/target/release/fc-load-probe ]]
 mkdir -p "$work/env"
 printf 'synthetic-task26' > "$work/env/FC_BUILD_LOAD_PROBE"
