@@ -98,5 +98,9 @@ if STACK=heroku-24 /bin/bash "$here/bin/compile" "$build" "$cache" "$work/env" >
   echo 'failed rustup download was accepted' >&2; exit 1
 fi
 grep -q 'unexpected download' "$work/download.log"
-[[ ! -s $CALLS ]]
+# Native installation precedes rustup; its logged Python calls are expected.
+# A failed toolchain download must never reach rustup or cargo execution.
+if grep -Eq '^(rustup|cargo) ' "$CALLS"; then
+  echo 'failed rustup download reached toolchain execution' >&2; exit 1
+fi
 echo 'owned buildpack: detect, stack refusal, pinned/locked compile, binary placement and download refusal passed'

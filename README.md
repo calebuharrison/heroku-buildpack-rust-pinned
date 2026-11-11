@@ -31,7 +31,7 @@ but the actual scratch slug and signature output still require verification.
 Task28 adds the reviewed **linux/amd64** libvips8.18.7 package. Compile invokes
 `script/native/vips/install.py` from the application, which downloads the exact
 public release asset defined there, validates its SHA256, manifest/file hashes,
-loaders and dynamic linkage, and atomically installs `vendor/vips`. The installer
+loaders and dynamic linkage, and atomically installs `vendor/rust-vips`. The installer
 refuses other architectures and an existing prefix. The asset must be published
 and independently checked before deploying; source code alone is not activation.
 See `script/native/vips/README.md` for the immutable artifact identity.
@@ -40,6 +40,8 @@ See `script/native/vips/README.md` for the immutable artifact identity.
 wrapper selects the private prefix before the application and defaults Postgres
 to TLS. Operator Rust commands must also use `bin/rust`. It refuses a missing or
 wrong-version native package before starting the app. Rails commands keep their
-existing runtime selection. The old third-party vips buildpack is redundant for
-Rust, but removing it from a scratch buildpack list is a separately reviewed
-operation, not a side effect of this compile script.
+existing runtime selection. The later legacy vips buildpack keeps its own `vendor/vips` prefix and profile
+for Rails. It must not write `vendor/rust-vips`; the focused coexistence
+control executes its retained compile after our installer and then sources its
+profile before proving final Rust activation and linkage. Removing that provider
+is outside this change.
