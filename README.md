@@ -10,6 +10,11 @@ installer, and builds `--release --locked -p web --bin fc-register`. It writes
 the executable to `target/release/fc-register` for `bin/web`, `bin/worker`, and
 `bin/release`. It does not run migrations or connect to a database.
 
+The preceding Apt stage must install `clang-18` from the application's `Aptfile`.
+Its dependencies supply libclang and the compiler builtin headers. Bindgen finds
+the versioned compiler through Apt's exported `PATH` and discovers its relocated
+include paths; `libclang1-18` alone cannot provide those headers.
+
 Rustup, Cargo registry and target files live in the app-local build cache,
 partitioned by Heroku stack and Linux architecture. The binary and pinned
 native prefix live in the slug. `rust-toolchain.toml`, `Cargo.lock`, and the

@@ -54,6 +54,16 @@ fi
 export RUSTUP_TOOLCHAIN="$version"
 "$CARGO_HOME/bin/cargo" build --release --locked -p web --bin fc-register
 install -Dm755 "$CARGO_TARGET_DIR/release/fc-register" "$build_dir/target/release/fc-register"
+# Only the reviewed scratch measurement release opts in. Ordinary slugs remain unchanged.
+probe_build=${FC_BUILD_LOAD_PROBE-}
+if [[ -z $probe_build && -f ${3-}/FC_BUILD_LOAD_PROBE ]]; then
+  probe_build=$(cat "$3/FC_BUILD_LOAD_PROBE")
+fi
+if [[ -n $probe_build ]]; then
+  [[ $probe_build == synthetic-task26 ]] || { echo 'invalid load probe opt-in' >&2; exit 1; }
+  "$CARGO_HOME/bin/cargo" build --release --locked -p web --example fc-load-probe
+  install -Dm755 "$CARGO_TARGET_DIR/release/examples/fc-load-probe" "$build_dir/target/release/fc-load-probe"
+fi
 [[ -x $build_dir/target/release/fc-register ]] || { echo 'fc-register buildpack: missing release binary' >&2; exit 1; }
 rm -rf "$build_dir/tmp/native/libxml2/build" "$build_dir/tmp/native/libxml2/download"
 echo "fc-register buildpack: Rust $version, $rust_target, pinned libxml2 2.13.9, locked binary ready"

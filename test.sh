@@ -2,6 +2,8 @@
 # Exercise the classic buildpack contract with local stand-ins; no downloads or app access.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
+# Apt supplies the compiler, builtin headers and libclang used by bindgen.
+grep -qx 'clang-18' "$here/../../Aptfile"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 build="$work/build"
@@ -60,8 +62,9 @@ END
 cat > "$cache/heroku-24/x86_64-unknown-linux-gnu/cargo/bin/cargo" <<'END'
 #!/bin/sh
 printf 'cargo %s\n' "$*" >> "$CALLS"
-mkdir -p "$CARGO_TARGET_DIR/release"
+mkdir -p "$CARGO_TARGET_DIR/release/examples"
 printf '#!/bin/sh\nexit 0\n' > "$CARGO_TARGET_DIR/release/fc-register"
+printf '#!/bin/sh\nexit 0\n' > "$CARGO_TARGET_DIR/release/examples/fc-load-probe"
 END
 chmod +x "$stubs"/* "$cache/heroku-24/x86_64-unknown-linux-gnu/cargo/bin"/*
 export PATH="$stubs:$PATH" CALLS="$work/calls"
@@ -76,6 +79,17 @@ STACK=heroku-24 /bin/bash "$here/bin/compile" "$build" "$cache" "$work/env" > "$
 [[ -x $build/target/release/fc-register ]]
 grep -q 'rustup toolchain install 1.93.1 --profile minimal' "$CALLS"
 grep -q 'cargo build --release --locked -p web --bin fc-register' "$CALLS"
+[[ ! -e $build/target/release/fc-load-probe ]]
+mkdir -p "$work/env"
+printf 'synthetic-task26' > "$work/env/FC_BUILD_LOAD_PROBE"
+STACK=heroku-24 /bin/bash "$here/bin/compile" "$build" "$cache" "$work/env" > "$work/probe.log" 2>&1
+[[ -x $build/target/release/fc-load-probe ]]
+grep -q 'cargo build --release --locked -p web --example fc-load-probe' "$CALLS"
+printf 'arbitrary' > "$work/env/FC_BUILD_LOAD_PROBE"
+if STACK=heroku-24 /bin/bash "$here/bin/compile" "$build" "$cache" "$work/env" > "$work/refuse-probe.log" 2>&1; then
+  echo 'invalid probe opt-in accepted' >&2; exit 1
+fi
+rm "$work/env/FC_BUILD_LOAD_PROBE"
 rm "$cache/heroku-24/x86_64-unknown-linux-gnu/cargo/bin/rustup"
 : > "$CALLS"
 if STACK=heroku-24 /bin/bash "$here/bin/compile" "$build" "$cache" "$work/env" > "$work/download.log" 2>&1; then
